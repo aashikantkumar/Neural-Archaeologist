@@ -30,8 +30,16 @@ export const auth = {
 
 // Investigation APIs
 export const investigations = {
-  create: (repoUrl) =>
-    api.post('/api/investigations/', { repo_url: repoUrl }),
+  create: (repoUrl, userContext = null, personaMode = null) => {
+    const payload = { repo_url: repoUrl };
+    if (userContext !== null && userContext !== undefined) {
+      payload.user_context = userContext;
+    }
+    if (personaMode) {
+      payload.persona_mode = personaMode;
+    }
+    return api.post('/api/investigations/', payload);
+  },
   
   get: (id) =>
     api.get(`/api/investigations/${id}`),

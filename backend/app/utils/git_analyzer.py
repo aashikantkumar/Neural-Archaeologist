@@ -453,10 +453,15 @@ class GitAnalyzer:
                     "languages": github_languages,
                     "releases": github_releases,
                     "community_health": github_community,
-                }
+                },
+
+                # Local clone path — available until caller calls cleanup()
+                "local_path": str(self.temp_dir) if self.temp_dir else None,
             }
             
             return result
-        
-        finally:
+            # Note: caller is responsible for cleanup via analyzer.cleanup()
+        except Exception:
+            # Clean up on failure; on success caller must call cleanup()
             self.cleanup()
+            raise

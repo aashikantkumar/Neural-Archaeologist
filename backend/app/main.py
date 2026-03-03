@@ -60,9 +60,12 @@ async def root():
         "websocket": "/socket.io"
     }
 
-# Create ASGI app with Socket.IO
+# Create ASGI app with Socket.IO (use this as the entry point for uvicorn)
 socket_app = socketio.ASGIApp(
     sio,
     app,
     socketio_path='/socket.io'
 )
+
+# Alias so uvicorn can use either: app.main:app or app.main:socket_app
+app = socket_app
