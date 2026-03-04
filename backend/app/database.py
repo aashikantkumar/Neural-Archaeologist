@@ -2,14 +2,20 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.config import settings
 
+# Fix DATABASE_URL if it uses postgres:// (Render gives old format)
+DATABASE_URL = settings.DATABASE_URL
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 # Create database engine
 engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,  # Verify connections before using
-    pool_size=5,          # Maintain 5 connections in pool
-    max_overflow=10,      # Allow 10 additional connections
-    pool_timeout=30,      # Timeout waiting for connection
-    echo=settings.DEBUG  # Log SQL queries in debug mode
+    DATABASE_URL,
+    connect_args={"sslmode": "require"},  # ✅ SSL fix
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    echo=settings.DEBUG
 )
 
 # Create session factory
