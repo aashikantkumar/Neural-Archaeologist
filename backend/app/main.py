@@ -11,64 +11,79 @@ logger = logging.getLogger(__name__)
 # Initialize DB with retry (instead of crashing at import time)
 init_db()
 
-# Initialize FastAPI app
+# Create FastAPI app
 app = FastAPI(
     title="Neural Archaeologist API",
-    description="Multi-Agent AI System for Code History Excavation ",
-    version="1.0.0",
-    debug=settings.DEBUG
+    description="AI-powered codebase archaeology and analysis",
+    version="2.0.0"
 )
 
-# Build allowed origins list from config (supports comma-separated env var)
-def _get_allowed_origins() -> list[str]:
-    origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
-    return origins
+# Configure CORS
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "https://neural-archaeologist.vercel.app",
+]
 
-# Configure CORS for frontend (local + deployed)
+# Add any additional origins from env var
+if settings.ALLOWED_ORIGINS:
+    allowed_origins.extend([
+        origin.strip() 
+        for origin in settings.ALLOWED_ORIGINS.split(",")
+        if origin.strip()
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_get_allowed_origins(),
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Import and include routes
-from app.routes.auth import router as auth_router
-from app.routes.investigations import router as investigations_router
+# Include routers
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(investigations.router, prefix="/api/investigations", tags=["investigations"])
 
-app.include_router(auth_router)
-app.include_router(investigations_router)
+# Create Socket.IO server
+sio = socketio.AsyncServer(
+    async_mode='asgi',
+    cors_allowed_origins=allowed_origins,
+    logger=True,
+    engineio_logger=True
+)
 
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    print("✅ Database tables created successfully")
-    print("✅ WebSocket server ready")
-    print("📊 API Docs: http://127.0.0.1:8000/docs")
-    print("💚 Health: http://127.0.0.1:8000/health")
+# Wrap with Socket.IO ASGI app
+socket_app = socketio.ASGIApp(
+    sio,
+    other_asgi_app=app,
+    socketio_path='/socket.io'
+)
 
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "message": "Neural Archaeologist API is running"}
+    return {
+        "status": "healthy",
+        "version": "2.0.0",
+        "database": "connected"
+    }
 
-# Root endpoint
 @app.get("/")
 async def root():
     return {
-        "message": "Welcome to Neural Archaeologist API",
+        "message": "Neural Archaeologist API v2",
         "docs": "/docs",
-        "health": "/health",
-        "websocket": "/socket.io"
+        "health": "/health"
     }
 
-# Create ASGI app with Socket.IO (use this as the entry point for uvicorn)
-socket_app = socketio.ASGIApp(
-    sio,
-    app,
-    socketio_path='/socket.io'
-)
+# Socket.IO event handlers
+@sio.event
+async def connect(sid, environ):
+    logger.info(f"Client connected: {sid}")
 
-# Alias so uvicorn can use either: app.main:app or app.main:socket_app
-app = socket_app
+@sio.event
+async def disconnect(sid):
+    logger.info(f"Client disconnected: {sid}")
