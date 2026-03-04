@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models import User
 from app.utils.auth import hash_password_async, verify_password_async, create_access_token
 
-router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+router = APIRouter()
 
 
 # Request/Response Models

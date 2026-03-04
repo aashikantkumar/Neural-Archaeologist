@@ -13,7 +13,7 @@ from app.utils.auth import verify_token
 from fastapi import Header
 
 
-router = APIRouter(prefix="/api/investigations", tags=["Investigations"])
+router = APIRouter()
 
 
 # Request/Response Models
