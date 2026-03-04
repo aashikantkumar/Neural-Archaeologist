@@ -1,10 +1,11 @@
 from sqlalchemy import Column, String, DateTime, Float, ForeignKey, Integer, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
+from app.database import Base  # Use the Base from database.py
 
-Base = declarative_base()
+
+__all__ = ["User", "Investigation", "AgentLog", "RepoCache", "Base"]
 
 
 def _uuid_str():

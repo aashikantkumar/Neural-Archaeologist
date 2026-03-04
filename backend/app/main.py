@@ -8,6 +8,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# IMPORTANT: Import models BEFORE init_db() so SQLAlchemy knows about them
+from app.models import User, Investigation, AgentLog, RepoCache
+
 # Initialize DB with retry (instead of crashing at import time)
 init_db()
 
