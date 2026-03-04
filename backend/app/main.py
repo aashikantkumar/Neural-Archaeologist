@@ -17,14 +17,15 @@ app = FastAPI(
     debug=settings.DEBUG
 )
 
-# Configure CORS for frontend
+# Build allowed origins list from config (supports comma-separated env var)
+def _get_allowed_origins() -> list[str]:
+    origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+    return origins
+
+# Configure CORS for frontend (local + deployed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://neural-archaeologist.vercel.app"
-    ],  # Vite default port & Vercel deployment
+    allow_origins=_get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

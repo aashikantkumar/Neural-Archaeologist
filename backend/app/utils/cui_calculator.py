@@ -486,6 +486,30 @@ class OnboardingGraphBuilder:
         
         return result
 
+    def build(
+        self,
+        import_graph: Dict[str, List[str]],
+        entry_points: List[Dict],
+    ) -> Dict:
+        """
+        Convenience wrapper called by AnalystAgent — takes just the import graph
+        and entry points (no pre-computed CUI scores needed).
+        Derives a uniform CUI map from import fan-in as a proxy.
+        """
+        # Build a proxy CUI map from import fan-in (how many files import each file)
+        fan_in: Dict[str, int] = {}
+        all_files: set = set(import_graph.keys())
+        for imports in import_graph.values():
+            for imp in imports:
+                fan_in[imp] = fan_in.get(imp, 0) + 1
+                all_files.add(imp)
+        max_fan = max(fan_in.values(), default=1)
+        cui_map = {f: round(fan_in.get(f, 0) / max_fan, 2) for f in all_files}
+
+        files_list = [{"path": f} for f in all_files]
+        cui_scores = [{"file": f, "cui_score": cui_map[f]} for f in all_files]
+        return self.build_graph(cui_scores, import_graph, entry_points, files_list)
+
     def _build_learning_tiers(
         self,
         topo_order: List[str],
@@ -493,38 +517,38 @@ class OnboardingGraphBuilder:
         entry_points: List[Dict]
     ) -> Dict[str, List[str]]:
         """
-        Organize files into learning tiers:
-        - day_1: Entry points + must-understand-first (CUI > 0.75), max 5
-        - day_3: Next critical files (CUI > 0.50), max 10
-        - week_1: Supporting files, max 20
+        Organize files into learning tiers (keys match frontend expectations):
+        - day_1:  Entry points + must-understand-first (CUI > 0.75), max 5
+        - week_1: Next critical files (CUI > 0.50), max 10
+        - week_2: Supporting files, max 20
         """
         entry_point_files = {ep["file"] for ep in entry_points}
-        
-        day_1 = []
-        day_3 = []
-        week_1 = []
-        
+
+        day_1: List[str] = []
+        week_1: List[str] = []
+        week_2: List[str] = []
+
         for fpath in topo_order:
             cui = cui_map.get(fpath, 0.0)
-            
+
             if fpath in entry_point_files or cui > 0.75:
                 if len(day_1) < 5:
                     day_1.append(fpath)
                 else:
-                    day_3.append(fpath)
+                    week_1.append(fpath)
             elif cui > 0.50:
-                if len(day_3) < 10:
-                    day_3.append(fpath)
+                if len(week_1) < 10:
+                    week_1.append(fpath)
                 else:
-                    week_1.append(fpath)
+                    week_2.append(fpath)
             elif cui > 0.25:
-                if len(week_1) < 20:
-                    week_1.append(fpath)
-        
+                if len(week_2) < 20:
+                    week_2.append(fpath)
+
         return {
             "day_1": day_1,
-            "day_3": day_3,
-            "week_1": week_1
+            "week_1": week_1,
+            "week_2": week_2,
         }
 
 

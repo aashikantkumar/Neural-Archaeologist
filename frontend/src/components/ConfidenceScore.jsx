@@ -92,12 +92,10 @@ const ConfidenceScore = ({ confidence, status }) => {
                             <div className="absolute inset-0 flex">
                                 <div className="w-[70%] border-r border-white/10"></div>
                             </div>
-                            {/* Animated progress fill */}
+                            {/* Animated progress fill — no key so it smoothly slides, never resets to 0 */}
                             <motion.div
-                                key={`bar-${safeConfidence}`}
-                                initial={{ width: 0 }}
                                 animate={{ width: `${Math.min(safeConfidence, 100)}%` }}
-                                transition={{ duration: 0.8, ease: 'easeOut' }}
+                                transition={{ duration: 1.2, ease: 'easeOut' }}
                                 className={`h-full bg-gradient-to-r ${getConfidenceColor()} relative z-10`}
                             />
                         </div>

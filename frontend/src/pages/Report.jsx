@@ -586,7 +586,7 @@ function Report() {
                   <span>🗺️</span>
                   Recommended Learning Path
                 </h3>
-                {Object.keys(learningPath).length > 0 ? (
+                {Object.values(learningPath).some(arr => Array.isArray(arr) && arr.length > 0) ? (
                   <div className="space-y-4">
                     {[
                       { key: 'day_1', label: 'Day 1', icon: '🌅', color: 'border-green-500/40 bg-green-500/5' },

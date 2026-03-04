@@ -19,6 +19,17 @@ class Settings(BaseSettings):
     # App
     DEBUG: bool = True
 
+    # CORS — comma-separated list of allowed origins
+    # Default covers local Vite dev + deployed Vercel app.
+    # On Render/Railway set this env var to include your exact Vercel URL(s).
+    ALLOWED_ORIGINS: str = (
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "http://localhost:5174,"
+        "http://127.0.0.1:5174,"
+        "https://neural-archaeologist.vercel.app"
+    )
+
     # v2 Settings
     CONFIDENCE_THRESHOLD: int = 70          # Minimum confidence to skip web search
     SEMGREP_ENABLED: bool = False           # Enable Semgrep for static analysis (requires semgrep CLI)

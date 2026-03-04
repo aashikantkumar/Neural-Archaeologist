@@ -101,18 +101,28 @@ class ScoutAgent:
         try:
             parser = ASTParser(repo_local_path)
             ast_result = parser.scan_repository()
+
+            # Compute aggregate doc coverage from per-file data
+            files_with_funcs = [f for f in ast_result.get("files", []) if f.get("function_count", 0) > 0]
+            if files_with_funcs:
+                avg_doc = sum(f.get("doc_coverage", 0) for f in files_with_funcs) / len(files_with_funcs)
+            else:
+                avg_doc = 0.0
+
             self.emit_progress(
-                f"  ✓ {ast_result['total_files']} files analyzed • "
-                f"{ast_result['total_functions']} functions • "
+                f"  ✓ {ast_result.get('file_count', 0)} files analyzed • "
+                f"{ast_result.get('function_count', 0)} functions • "
                 f"{len(ast_result.get('entry_points', []))} entry points"
             )
+            langs = ast_result.get("languages", {})
             self.emit_progress(
-                f"  ↳ Languages: {', '.join(ast_result.get('languages_found', []))}"
+                f"  ↳ Languages: {', '.join(langs.keys()) if langs else 'none detected'}"
             )
-            lang_stats = ast_result.get("language_stats", {})
-            doc_cov = ast_result.get("doc_coverage", {})
             self.emit_progress(
-                f"  ↳ Doc coverage: {doc_cov.get('coverage_percentage', 0):.1f}%"
+                f"  ↳ Doc coverage: {avg_doc * 100:.1f}%"
+            )
+            self.emit_progress(
+                f"  ↳ Import graph: {len(ast_result.get('imports_graph', {}))} files with imports"
             )
             return ast_result
         except Exception as e:

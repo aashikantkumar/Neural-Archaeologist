@@ -6,7 +6,7 @@ from datetime import datetime
 import uuid
 import asyncio
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import Investigation, User, AgentLog
 from app.agents.coordinator import Coordinator
 from app.utils.auth import verify_token
@@ -98,13 +98,18 @@ def progress_callback_sync(investigation_id: str, db: Session):
 def run_investigation(
     investigation_id: str,
     repo_url: str,
-    db: Session,
     user_context: Optional[Union[str, Dict[str, Any]]] = None,
     persona_mode: Optional[str] = None,
 ):
-    """Background task to run investigation"""
+    """Background task to run investigation.
+    Creates its own DB session — the request-scoped session is already closed
+    by the time this background task executes.
+    """
     import traceback
-    
+
+    # Own session for the background task lifetime
+    db = SessionLocal()
+
     # Get investigation record
     investigation = db.query(Investigation).filter(Investigation.id == investigation_id).first()
     
@@ -150,6 +155,8 @@ def run_investigation(
         investigation.status = "failed"
         investigation.report = error_msg
         db.commit()
+    finally:
+        db.close()
 
 
 @router.post("/", response_model=InvestigationResponse, status_code=status.HTTP_201_CREATED)
@@ -173,12 +180,11 @@ async def create_investigation(
     db.commit()
     db.refresh(investigation)
     
-    # Queue background task
+    # Queue background task — pass IDs/values only, not the request-scoped db session
     background_tasks.add_task(
         run_investigation,
         str(investigation.id),
         str(data.repo_url),
-        db,
         data.user_context or "",
         data.persona_mode,
     )

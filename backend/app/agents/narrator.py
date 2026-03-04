@@ -77,6 +77,33 @@ class NarratorAgent:
     # Helpers
     # ─────────────────────────────────────────────────────────────────────────
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # Glossary
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _glossary() -> str:
+        return """
+---
+
+## 📖 Terms Explained
+
+| Term | What it means |
+|------|---------------|
+| **CUI Score** | 0–100. How easy this codebase is to understand. Higher = easier. |
+| **OCS** *(Onboarding Complexity)* | 0–100. How hard it is for a new dev to get productive. Higher = harder. |
+| **Bus Factor** | How many people carry critical knowledge. Bus factor 1 = one person leaving breaks everything. |
+| **Cyclomatic Complexity** | How many decision paths are in the code. High = harder to read and test. |
+| **Tech Debt** | Shortcuts taken during development that will cost extra effort to fix later. |
+| **Fan-in / Fan-out** | Fan-in = files that depend on this file. Fan-out = files this file depends on. |
+| **DAG** *(Learning Path)* | A recommended reading order for files, from foundational to advanced. |
+| **CRITICAL / HIGH / MEDIUM / LOW** | Risk severity. CRITICAL = fix now (e.g. hardcoded secrets). LOW = monitor. |
+| **Salvageability** | Whether this codebase is worth reusing, partially adapting, or discarding. |
+| **Persona Mode** | Who this report is written for: developer, startup team, enterprise architect, or OSS maintainer. |
+| **Good First Issue** | A GitHub-tagged task suitable for newcomers — small scope, low risk. |
+| **Stale PR** | A pull request untouched for 90+ days — signals a review backlog or abandoned work. |
+"""
+
     def has_web_evidence(self, scout_data: Dict) -> bool:
         for _, results in scout_data.get("web_search_results", {}).items():
             for r in results:
@@ -144,14 +171,64 @@ class NarratorAgent:
         return "\n".join(lines)
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Persona-specific prompt builders
+    # Prompt builders
     # ─────────────────────────────────────────────────────────────────────────
+
+    def _format_patterns(self, scout_data: Dict) -> str:
+        patterns = scout_data.get("patterns_detected", {})
+        lines = []
+        if "activity_spike" in patterns:
+            s = patterns["activity_spike"]
+            lines.append(f"- Activity spike in {s['month']}: {s['commit_count']} commits (avg {s['average']})")
+        if "sudden_stop" in patterns:
+            s = patterns["sudden_stop"]
+            lines.append(f"- Sudden stop: last commit {s['last_activity']} ({s['months_since']:.0f} months ago)")
+        if "gradual_decay" in patterns:
+            s = patterns["gradual_decay"]
+            lines.append(f"- Gradual decay: {s['decline_percentage']:.0f}% decline (early avg {s['early_avg']} → later avg {s['later_avg']})")
+        return "\n".join(lines) if lines else "- No significant activity patterns detected"
+
+    def _build_story_block(self, scout_data: Dict, analysis: Dict) -> str:
+        """Three-act narrative block — always included, citation behaviour is conditional."""
+        has_web = self.has_web_evidence(scout_data)
+        citation_instruction = (
+            "CRITICAL: You HAVE web sources below. In Act III, cite them specifically — "
+            "e.g. 'According to [Source Name]...' or 'The GitHub archive page indicates...'. "
+            "Use actual facts from the full content, not vague references like 'sources suggest'."
+            if has_web else
+            "No external web sources were found. Base the narrative ONLY on git patterns."
+        )
+
+        return f"""
+## ── PART 1: THE STORY ──────────────────────────────────────────────────────
+
+Be concise — each act is ONE tight paragraph (3-5 sentences max). No padding.
+{citation_instruction}
+
+### ACT I: THE BIRTH
+1 paragraph: when it started, who, what problem it solved. Ground every claim in the timeline data.
+
+### ACT II: THE GOLDEN AGE
+1 paragraph: the peak activity month, key contributors, what was being built most actively.
+
+### ACT III: THE DECLINE
+1 paragraph: what pattern caused the slowdown.
+{"Cite specific facts from the web sources (author/company names, direct quotes)." if has_web else "Based solely on git patterns."}
+
+### 🔍 KEY FINDINGS
+3-5 bullet points only — the most critical discoveries, each one sentence.
+
+### 💡 SALVAGEABILITY
+One line verdict (HIGHLY SALVAGEABLE / PARTIALLY SALVAGEABLE / NOT SALVAGEABLE) + one sentence justification.
+
+{"### 📚 SOURCES" + chr(10) + self._format_web_evidence(scout_data) if has_web else ""}
+"""
 
     def _build_prompt(self, scout_data: Dict, analysis: Dict, persona_mode: str) -> str:
         struct = PERSONA_REPORT_STRUCTURE.get(persona_mode, PERSONA_REPORT_STRUCTURE["SOLO_DEV"])
         sections_str = "\n".join(f"- {s}" for s in struct["sections"])
 
-        base_context = f"""
+        data_block = f"""
 Repository: {scout_data.get('repo_name', 'Unknown')}
 Hypothesis: {analysis.get('hypothesis', '')}
 Confidence: {analysis.get('confidence', 0)}%
@@ -159,61 +236,67 @@ Technical Health: {analysis.get('technical_health', 'N/A')}
 Likely Cause: {analysis.get('likely_cause', 'unknown')}
 Salvageability: {analysis.get('salvageability', 'unknown')}
 
-Timeline: {scout_data.get('first_commit_date','?')} → {scout_data.get('last_commit_date','?')}
-Commits: {scout_data.get('total_commits',0)} | Contributors: {scout_data.get('contributors_count',0)} | Active months: {scout_data.get('active_period_months',0):.1f}
+Timeline: {scout_data.get('first_commit_date', '?')} → {scout_data.get('last_commit_date', '?')}
+Commits: {scout_data.get('total_commits', 0)} | Contributors: {scout_data.get('contributors_count', 0)} | Active months: {scout_data.get('active_period_months', 0):.1f}
 
-CUI Score: {analysis.get('cui_scores',{}).get('cui_score',0):.1f}/100 ({analysis.get('cui_scores',{}).get('understanding_label','N/A')})
-Onboarding Complexity: {analysis.get('ocs_score',0)}/100 ({analysis.get('ocs_label','N/A')})
+Git Patterns:
+{self._format_patterns(scout_data)}
 
-## Learning Path:
+CUI Score: {analysis.get('cui_scores', {}).get('cui_score', 0):.1f}/100 ({analysis.get('cui_scores', {}).get('understanding_label', 'N/A')})
+Onboarding Complexity: {analysis.get('ocs_score', 0)}/100 ({analysis.get('ocs_label', 'N/A')})
+
+Learning Path:
 {self._format_learning_path(analysis)}
 
-## Bus Factor Risks:
+Bus Factor Risks:
 {self._format_bus_factor(scout_data)}
 
-## Security / Risk Findings:
+Security / Risk Findings:
 {self._format_risk_findings(scout_data)}
 
-## Business Risks:
+Business Risks:
 {self._format_business_risk(analysis)}
 
-## Safe First PR:
+Safe First PR:
 {self._format_safe_first_pr(scout_data)}
 
-## Key Findings:
+Key Findings:
 {chr(10).join(f'- {f}' for f in analysis.get('key_findings', []))}
 
-## Web Evidence:
+Web Evidence:
 {self._format_web_evidence(scout_data)}
 """
 
-        prompt = f"""You are a {struct['title']} generator. Tone: {struct['tone']}.
+        story_block = self._build_story_block(scout_data, analysis)
 
-Given the following repository intelligence data, produce a comprehensive report in Markdown.
-Include EXACTLY these sections (use ## headers):
-{sections_str}
+        return f"""You are generating a Neural Archaeologist Report.
+The report has TWO parts. Write BOTH. Be dense and data-driven — no filler prose.
 
-Also always include at the top:
-# 🔬 Neural Archaeologist Report: {scout_data.get('repo_name','Unknown')}
+# 🔬 Neural Archaeologist Report: {scout_data.get('repo_name', 'Unknown')}
 **Persona Mode:** {persona_mode} | **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}
 
 ---
-
-## Data:
-{base_context}
-
+## INTELLIGENCE DATA (use this for everything below):
+{data_block}
 ---
 
+{story_block}
+
+## ── PART 2: {struct['title'].upper()} ──────────────────────────────────────
+
+Tone: {struct['tone']}
+
+Write the persona-specific analysis. Include EXACTLY these sections (use ## headers):
+{sections_str}
+
 Instructions:
-- Write in Markdown. Be specific and data-driven.
-- Use CUI score, OCS, and bus factor numbers directly in the text.
-- For SOLO_DEV: focus on where to start reading and what to avoid.
-- For STARTUP: make a clear risk/cost/timeline recommendation.
-- For ENTERPRISE: include compliance signals and migration complexity.
-- For OSS_MAINTAINER: emphasise contributor experience and community health.
-- After each section header, write 2-4 substantive paragraphs (not bullet lists alone).
-- End with a **Verdict** — one summary paragraph of what this repo is worth."""
-        return prompt
+- Each section: 1-2 focused paragraphs or a tight bullet list. No watering down.
+- Use CUI score, OCS, bus factor numbers directly.
+- For SOLO_DEV: where to start reading and what to avoid.
+- For STARTUP: clear risk/cost/timeline recommendation.
+- For ENTERPRISE: compliance signals and migration complexity.
+- For OSS_MAINTAINER: contributor experience and community health.
+- End Part 2 with a **Verdict** — one punchy paragraph on what this repo is worth."""
 
     # ─────────────────────────────────────────────────────────────────────────
     # Timeline & contributor helpers (unchanged shape)
@@ -313,9 +396,9 @@ Instructions:
                 ],
                 model="llama-3.3-70b-versatile",
                 temperature=0.7,
-                max_tokens=4000,
+                max_tokens=2000,
             )
-            narrative = completion.choices[0].message.content
+            narrative = completion.choices[0].message.content + self._glossary()
             self.emit_progress("  ✓ Narrative generated")
 
             timeline = self.generate_timeline(scout_data, analysis)

@@ -53,9 +53,9 @@ User Request
 ┌─────────────────────────────────────────────────────────────────┐
 │                     COORDINATOR (LangGraph)                      │
 │                                                                  │
-│  PersonaRouter ──► Planner ──► Scout ──► Analyst ──► Evaluator ──► Narrator │
-│                                  ▲           │                    │
-│                                  └─ (loop if confidence < 70%) ──┘ │
+│  Scout ──► PersonaRouter ──► Planner ──► Analyst ──► Evaluator ──► Narrator │
+│     ▲                                        │                    │
+│     └─ (loop if confidence < 70%) ──────────┘                    │
 └─────────────────────────────────────────────────────────────────┘
      │
      ▼
@@ -66,31 +66,9 @@ Persona-Aware Markdown Report  +  JSON Metadata
 
 ## The 6-Agent Pipeline
 
-### 1. 🎭 Persona Router
-Classifies the investigation intent into one of 4 modes.
+### 1. 🔍 Scout (Multi-Source, 4 Modules)
 
-- **Method:** Heuristic scoring (fast, no LLM call if confidence ≥ 0.80) with LLM fallback for ambiguous cases
-- **Input:** `repo_url`, `user_context` (free-text intent)
-- **Output:** `persona_mode`, `confidence`
-
-```
-SOLO_DEV | STARTUP | ENTERPRISE | OSS_MAINTAINER
-```
-
----
-
-### 2. 📋 Planner
-Generates an explicit JSON task graph before any analysis begins. Inspired by CodeR and CrewAI.
-
-- **Strategies:** `shallow_first` (>5000 files), `standard` (>500 files), `deep` (small repos)
-- **Output:** Ordered step list with 4 phases: Scout gathering → Analysis → Evaluation → Reporting
-- **Persona customisation:** Enterprise gets compliance steps; OSS_MAINTAINER gets community health steps
-
----
-
-### 3. 🔍 Scout (Multi-Source, 4 Modules)
-
-Runs 4 parallel extraction modules:
+Runs first to gather real repository intelligence across 4 parallel extraction modules:
 
 | Module | What it gathers |
 |--------|----------------|
@@ -101,6 +79,34 @@ Runs 4 parallel extraction modules:
 
 Optionally runs a **Web Search** pass (SerpAPI + BeautifulSoup) when confidence is below threshold.
 
+**Confidence Output**: 15% (baseline after completion)
+
+---
+
+### 2. 🎭 Persona Router
+Classifies the investigation intent using **real repository data** from Scout.
+
+- **Method:** Heuristic scoring (fast, no LLM call if confidence ≥ 0.80) with LLM fallback for ambiguous cases
+- **Input:** Scout's GitHub metadata (stars, forks, contributors, file count, community health)
+- **Output:** `persona_mode`, `confidence`
+
+```
+SOLO_DEV | STARTUP | ENTERPRISE | OSS_MAINTAINER
+```
+
+**Confidence Output**: 25%
+
+---
+
+### 3. 📋 Planner
+Generates an explicit JSON task graph with real file counts from Scout. Inspired by CodeR and CrewAI.
+
+- **Strategies:** `shallow_first` (>5000 files), `standard` (>500 files), `deep` (small repos)
+- **Output:** Ordered step list with 4 phases: Scout gathering → Analysis → Evaluation → Reporting
+- **Persona customisation:** Enterprise gets compliance steps; OSS_MAINTAINER gets community health steps
+
+**Confidence Output**: 35%
+
 ---
 
 ### 4. 🧪 Analyst (CUI v2 + OCS + Business Risk + LLM)
@@ -108,10 +114,12 @@ Optionally runs a **Web Search** pass (SerpAPI + BeautifulSoup) when confidence 
 Four computation steps:
 
 1. **CUI v2** — 8-component Codebase Understanding Index (see formula below)
-2. **Onboarding Graph** — imports → DAG → topological sort → Day 1/3/Week 1 tiers
+2. **Onboarding Graph** — imports → DAG → topological sort → Day 1/Week 1/Week 2 tiers  
 3. **OCS** — Onboarding Complexity Score (0–100)
 4. **Business Risk** — 4 risk rules (CRITICAL / HIGH / MEDIUM)
 5. **LLM Hypothesis** — Groq `llama-3.3-70b-versatile` forms a narrative hypothesis with confidence score
+
+**Confidence Output**: Real computed confidence (typically 60-90%)
 
 ---
 
@@ -129,11 +137,18 @@ Runs 4 verification checks before any report is published:
 Also runs a **pattern-based risk scan** (Semgrep if available, regex fallback otherwise).  
 Adjusts overall confidence by ±N points based on findings.
 
+**Confidence Output**: Adjusted final confidence
+
 ---
 
 ### 6. 📖 Narrator (Persona-Aware Reports)
 
-Generates a different report structure for each persona:
+Generates **concise, data-driven reports** tailored for each persona. Reports are optimized for brevity while retaining all critical information:
+
+- **3-Act Story**: Birth → Golden Age → Decline (1 paragraph each, 3-5 sentences max)
+- **Key Findings**: 3-5 bullet points of critical discoveries
+- **Salvageability**: One-line verdict with brief justification
+- **Persona Sections**: 1-2 focused paragraphs per section
 
 | Persona | Report Sections |
 |---------|----------------|
@@ -201,10 +216,12 @@ Entry Point (main.py)
 
 Learning tiers:
 - **Day 1** — up to 5 files: entry points + their direct dependencies
-- **Day 3** — up to 10 more files: second-level dependencies
-- **Week 1** — up to 20 more files: deeper graph
+- **Week 1** — up to 10 more files: second-level dependencies  
+- **Week 2** — up to 20 more files: deeper graph
 
 The **Onboarding Complexity Score (OCS)** aggregates graph depth, breadth, cyclomatic complexity, and bus-factor-critical files into a 0–100 score.
+
+**Note**: Learning path generation has been fully debugged and now correctly populates for all repository types.
 
 ---
 
@@ -425,7 +442,7 @@ DELETE /investigations/{id}    Delete investigation
     "narrative": "## Markdown report...",
     "timeline": [...],
     "executive_summary": {...},
-    "learning_path": {"day_1": [...], "day_3": [...], "week_1": [...]},
+    "learning_path": {"day_1": [...], "week_1": [...], "week_2": [...]},
     "safe_first_pr": {...},
     "bus_factor_summary": "..."
   },
@@ -461,17 +478,18 @@ socket.on("investigation_complete", (data) => {
 
 ### Dashboard
 1. Enter a GitHub repository URL
-2. (Optional) Describe your intent in plain text — the Persona Router will auto-detect your mode
+2. (Optional) Choose a persona mode, or let the system auto-detect based on repository characteristics
 3. Click **Investigate** — watch the live agent log feed update in real-time
-4. View the confidence score build up as each agent completes
+4. View the confidence score build gradually: 15% → 25% → 35% → final score as each agent completes
 
 ### Report Page
-- **Narrative tab** — full Markdown report rendered with syntax highlighting
+- **Story tab** — concise 3-act narrative with key findings and salvageability assessment
 - **Timeline** — interactive Recharts timeline of key events
-- **CUI Breakdown** — radar chart of 8 CUI components
-- **Onboarding Graph** — DAG visualisation with Day 1/3/Week 1 layers
-- **Risk Panel** — business risk items with severity badges
-- **Safe First PR** — labelled issues ready to contribute to
+- **Analysis tab** — CUI breakdown, OCS score, business risk assessment
+- **Onboarding tab** — Learning path (Day 1/Week 1/Week 2), safe first PR suggestions, bus factor analysis  
+- **Contributors** — contributor profiles and activity patterns
+- **GitHub Insights** — community health, issue/PR metrics
+- **Sources** — web evidence and citations (when available)
 
 ### History
 Browse past investigations, filter by repo or persona mode, re-open full reports.
@@ -505,7 +523,10 @@ cd frontend && npm run dev
 | 4 Persona Modes | ✅ v2 |
 | CUI v2 Formula | ✅ v2 |
 | AST Parsing (regex MVP) | ✅ v2 |
-| Onboarding DAG | ✅ v2 |
+| Onboarding Graph (DAG) | ✅ v2 |
+| Learning Path Generation | ✅ v2 (Fixed) |
+| Staged Confidence Updates | ✅ v2 |
+| Shortened Narrative Reports | ✅ v2 |
 | Bus Factor Extraction | ✅ v2 |
 | Evaluator / Quality Gate | ✅ v2 |
 | Static Risk Scan | ✅ v2 |

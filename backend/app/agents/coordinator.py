@@ -80,10 +80,37 @@ class Coordinator:
     # ─── Nodes ────────────────────────────────────────────────────────────────
 
     def _persona_node(self, state: InvestigationState) -> InvestigationState:
-        self.emit_progress("Stage 1/6 — Persona Router")
-        # Build lightweight repo_metadata from URL until Scout provides real data
+        # Short-circuit on loop iterations — persona already classified from first Scout run
+        if state.get("persona_mode"):
+            self.emit_progress(f"  ↷ Persona already set: {state['persona_mode']} — skipping re-classification")
+            return state
+
+        self.emit_progress("Stage 2/6 — Persona Router (using real repo data from Scout)")
+
+        # Build rich repo_metadata from Scout's actual findings instead of just the URL
+        scout_data = state.get("scout_data", {})
+        structure = state.get("structure", {})
+        community = state.get("community", {})
+        github_info = scout_data.get("github_data", {}).get("repo_info") or {}
+        github_community_health = scout_data.get("github_data", {}).get("community_health") or {}
+
         url_parts = state["repo_url"].rstrip("/").split("/")
-        repo_metadata = {"repo_name": url_parts[-1] if url_parts else "unknown"}
+        repo_metadata = {
+            "repo_name": scout_data.get("repo_name") or (url_parts[-1] if url_parts else "unknown"),
+            # Real counts from GitHub API / git analysis (not empty defaults)
+            "file_count": structure.get("file_count", 0),
+            "contributors_count": scout_data.get("contributors_count", 1),
+            "stars": github_info.get("stars", 0),
+            "forks": github_info.get("forks", 0),
+            "open_issues": community.get("open_issues", 0),
+            # Community signals from GitHub community health API
+            "has_contributing": github_community_health.get("has_contributing", False),
+            "has_codeowners": False,  # Not explicitly tracked yet
+            # If GitHub API returned repo_info the repo is public/accessible
+            "is_public": bool(github_info),
+            "is_archived": github_info.get("is_archived", False),
+        }
+
         user_ctx_raw = state.get("user_context", "")
         user_context = (
             {"declared_persona": user_ctx_raw}
@@ -97,16 +124,24 @@ class Coordinator:
         state["persona_mode"] = result["persona_mode"]
         state["persona_confidence"] = result.get("confidence", 1.0)
         self.emit_progress(
-            f"  ✓ Persona: {result['persona_mode']} (confidence={result.get('confidence',1.0):.2f})"
+            f"  ✓ Persona: {result['persona_mode']} "
+            f"(confidence={result.get('confidence', 1.0):.2f}) "
+            f"| signals: {', '.join(result.get('reasoning', [])[:3])}",
+            {"confidence": 25},
         )
         return state
 
     def _planner_node(self, state: InvestigationState) -> InvestigationState:
-        self.emit_progress("Stage 2/6 — Planner")
-        # repo_metadata will be enriched after Scout; pass what we know now
+        # Short-circuit on loop iterations — task graph already built
+        if state.get("task_graph"):
+            self.emit_progress("  ↷ Task graph already built — skipping re-planning")
+            return state
+
+        self.emit_progress("Stage 3/6 — Planner (with real file/language data)")
+        # Scout has already run — structure is populated with real file counts and languages
         repo_metadata: dict = {
-            "file_count": state.get("structure", {}).get("total_files", 0),
-            "languages": list(state.get("structure", {}).get("language_stats", {}).keys()),
+            "file_count": state.get("structure", {}).get("file_count", 0),
+            "languages": list(state.get("structure", {}).get("languages", {}).keys()),
             "has_github_token": bool(getattr(__import__("app.config", fromlist=["settings"]).settings, "GITHUB_TOKEN", None)),
         }
         task_graph = self.planner.create_plan(
@@ -116,12 +151,13 @@ class Coordinator:
         state["task_graph"] = task_graph
         self.emit_progress(
             f"  ✓ Plan created: {len(task_graph.get('steps', []))} steps | "
-            f"strategy={task_graph.get('strategy','standard')}"
+            f"strategy={task_graph.get('strategy','standard')}",
+            {"confidence": 35},
         )
         return state
 
     def _scout_node(self, state: InvestigationState) -> InvestigationState:
-        self.emit_progress("Stage 3/6 — Scout (multi-source)")
+        self.emit_progress("Stage 1/6 — Scout (multi-source intelligence gathering)")
         do_web = state.get("needs_web_search", False) or not state.get("web_search_done", False)
 
         scout_data = self.scout.investigate(
@@ -152,6 +188,13 @@ class Coordinator:
         if do_web:
             state["web_search_done"] = True
             state["needs_web_search"] = False
+
+        # Emit a staged confidence so the frontend bar starts moving (15% baseline after scout)
+        self.emit_progress(
+            f"  ✓ Scout complete — {state['structure'].get('file_count', 0)} files, "
+            f"{state['history'].get('total_commits', 0)} commits",
+            {"confidence": 15},
+        )
         return state
 
     def _analyst_node(self, state: InvestigationState) -> InvestigationState:
@@ -167,6 +210,12 @@ class Coordinator:
         state["onboarding_graph"] = analysis.get("onboarding_graph", {})
         state["ocs_score"] = analysis.get("ocs_score", 0)
         state["business_risk"] = analysis.get("business_risk", {})
+
+        # Emit analyst confidence so the bar jumps to the real value
+        self.emit_progress(
+            f"  ✓ Analysis complete — confidence {analysis['confidence']}%",
+            {"confidence": analysis["confidence"]},
+        )
 
         if analysis["confidence"] < 70 and not state.get("web_search_done", False):
             state["needs_web_search"] = True
@@ -190,7 +239,8 @@ class Coordinator:
         self.emit_progress(
             f"  ✓ Evaluation: {eval_result.get('status','ok')} | "
             f"delta={eval_result.get('confidence_delta',0):+d} | "
-            f"adjusted confidence={state['confidence']}%"
+            f"adjusted confidence={state['confidence']}%",
+            {"confidence": state["confidence"]},
         )
         return state
 
@@ -231,18 +281,22 @@ class Coordinator:
     def _build_workflow(self) -> StateGraph:
         wf = StateGraph(InvestigationState)
 
+        wf.add_node("scout", self._scout_node)
         wf.add_node("persona_router", self._persona_node)
         wf.add_node("planner", self._planner_node)
-        wf.add_node("scout", self._scout_node)
         wf.add_node("analyst", self._analyst_node)
         wf.add_node("evaluator", self._evaluator_node)
         wf.add_node("narrator", self._narrator_node)
 
-        wf.set_entry_point("persona_router")
+        # Scout runs FIRST so PersonaRouter and Planner get real repo data
+        # (stars, forks, contributors, file counts from GitHub API + AST scan)
+        # On confidence-loop iterations, PersonaRouter and Planner short-circuit
+        # (persona_mode and task_graph already set), only Scout re-runs for web search.
+        wf.set_entry_point("scout")
 
+        wf.add_edge("scout", "persona_router")
         wf.add_edge("persona_router", "planner")
-        wf.add_edge("planner", "scout")
-        wf.add_edge("scout", "analyst")
+        wf.add_edge("planner", "analyst")
         wf.add_conditional_edges(
             "analyst",
             self._should_gather_more_evidence,

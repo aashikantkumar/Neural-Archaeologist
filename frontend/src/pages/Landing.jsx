@@ -75,6 +75,15 @@ function Landing() {
     const [repoUrl, setRepoUrl] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [persona, setPersona] = useState('');
+
+    const PERSONAS = [
+        { value: '',              label: '🤖 Auto-detect',     desc: 'Let AI figure it out' },
+        { value: 'SOLO_DEV',     label: '🧑‍💻 Solo Developer', desc: 'Onboarding & learning path' },
+        { value: 'STARTUP',      label: '🚀 Startup',         desc: 'Risk & build-vs-buy' },
+        { value: 'ENTERPRISE',   label: '🏢 Enterprise',      desc: 'Security & compliance' },
+        { value: 'OSS_MAINTAINER', label: '🌍 OSS Maintainer', desc: 'Community & contributor health' },
+    ];
 
     const navigate = useNavigate();
     const isAuthenticated = useStore((state) => state.isAuthenticated);
@@ -111,11 +120,12 @@ function Landing() {
         startInvestigation(repoUrl);
     };
 
-    const startInvestigation = async (url) => {
+    const startInvestigation = async (url, personaOverride) => {
         setError('');
         setLoading(true);
         try {
-            const response = await investigations.create(url);
+            const chosenPersona = personaOverride || persona || null;
+            const response = await investigations.create(url, null, chosenPersona);
             navigate(`/dashboard/${response.data.id}`);
         } catch (err) {
             setError(err.response?.data?.detail || 'Failed to start investigation');
@@ -311,6 +321,31 @@ function Landing() {
                                 </motion.button>
                             </div>
                         </div>
+
+                        {/* Persona selector */}
+                        <div className="mt-3 flex flex-wrap gap-2 justify-center">
+                            {PERSONAS.map((p) => (
+                                <button
+                                    key={p.value}
+                                    type="button"
+                                    onClick={() => setPersona(p.value)}
+                                    title={p.desc}
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                                        persona === p.value
+                                            ? 'bg-purple-600/40 border-purple-400 text-white'
+                                            : 'bg-white/5 border-white/10 text-gray-400 hover:border-purple-500/50 hover:text-gray-200'
+                                    }`}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+                        {persona && (
+                            <p className="text-center text-xs text-purple-400 mt-1.5">
+                                {PERSONAS.find(p => p.value === persona)?.desc}
+                            </p>
+                        )}
+
                         {error && (
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}
@@ -331,9 +366,9 @@ function Landing() {
                     className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-20"
                 >
                     {[
-                        { value: '847000', suffix: '+', label: 'Commits Analyzed', icon: '📊' },
-                        { value: '90', suffix: '%+', label: 'Avg Confidence', icon: '🎯' },
-                        { value: '3', suffix: ' min', label: 'Investigation Time', icon: '⚡' },
+                        { value: '847000', suffix: '+', label: 'Commits Analyzed', icon: '' },
+                        { value: '90', suffix: '%+', label: 'Avg Confidence', icon: '' },
+                        { value: '3', suffix: ' min', label: 'Investigation Time', icon: '' },
                     ].map((stat, i) => (
                         <motion.div
                             key={stat.label}

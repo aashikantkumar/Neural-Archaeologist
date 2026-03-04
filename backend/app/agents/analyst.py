@@ -40,10 +40,8 @@ class AnalystAgent:
         bus_factor_map = scout_data.get("bus_factor_map", {})
 
         # Component C: Cyclomatic complexity (inverse, normalised to 0-1)
-        lang_stats = structure.get("language_stats", {})
-        all_fns = []
-        for lang_funcs in structure.get("functions_by_file", {}).values():
-            all_fns.extend(lang_funcs)
+        # parser returns a flat list under "functions"
+        all_fns = structure.get("functions", [])
         avg_complexity = 1.0
         if all_fns:
             complexities = [fn.get("cyclomatic_complexity", 1) for fn in all_fns]
@@ -51,7 +49,7 @@ class AnalystAgent:
             avg_complexity = max(0.0, min(1.0, 1 - (raw_avg - 1) / 20))
 
         # Component F: File count score (too many = hard to navigate)
-        total_files = structure.get("total_files", 0)
+        total_files = structure.get("file_count", 0)
         file_score = max(0.0, min(1.0, 1 - total_files / 2000))
 
         # Component H: History score (recent activity = easier to understand context)
@@ -68,14 +66,15 @@ class AnalystAgent:
                 pass
 
         # Component I: Import complexity (high fan-in = complex)
-        import_graph = structure.get("import_graph", {})
+        import_graph = structure.get("imports_graph", {})
         fan_in_values = [len(v) for v in import_graph.values()] if import_graph else [0]
         avg_fan_in = sum(fan_in_values) / len(fan_in_values) if fan_in_values else 0
         import_score = max(0.0, min(1.0, 1 - avg_fan_in / 20))
 
         # Component T: Test coverage signal (presence of test files)
-        all_files = structure.get("all_files", [])
-        test_files = [f for f in all_files if "test" in f.lower() or "spec" in f.lower()]
+        # parser returns files as list of dicts with "path" key
+        all_file_paths = [f["path"] for f in structure.get("files", []) if isinstance(f, dict)]
+        test_files = [f for f in all_file_paths if "test" in f.lower() or "spec" in f.lower()]
         test_score = min(1.0, len(test_files) / max(1, total_files) * 10)
 
         # Component R: Risk score (inverse of risk density)
@@ -89,9 +88,12 @@ class AnalystAgent:
         total_tracked = max(1, len(bus_factor_map))
         bus_score = max(0.0, min(1.0, 1 - critical_files / total_tracked))
 
-        # Component D: Documentation coverage
-        doc_cov = structure.get("doc_coverage", {})
-        doc_score = doc_cov.get("coverage_percentage", 0) / 100.0
+        # Component D: Documentation coverage — computed from per-file data
+        files_with_funcs = [f for f in structure.get("files", []) if isinstance(f, dict) and f.get("function_count", 0) > 0]
+        if files_with_funcs:
+            doc_score = sum(f.get("doc_coverage", 0.0) for f in files_with_funcs) / len(files_with_funcs)
+        else:
+            doc_score = 0.0
 
         components = {
             "complexity": avg_complexity,
@@ -117,11 +119,35 @@ class AnalystAgent:
     def _build_onboarding_graph(self, scout_data: Dict) -> Dict:
         self.emit_progress("  Building onboarding DAG...")
         structure = scout_data.get("structure", {})
-        import_graph = structure.get("import_graph", {})
+        import_graph = structure.get("imports_graph", {})
         entry_points = structure.get("entry_points", [])
 
         if not import_graph:
-            return {}
+            # Fallback: build a simple tier list from entry points + file list
+            files = structure.get("files", [])
+            ep_files = [e["file"] for e in entry_points[:3]]
+            all_paths = [f["path"] for f in files if isinstance(f, dict)]
+
+            # Day 1: entry points (or first 3 files)
+            day1 = ep_files if ep_files else all_paths[:3]
+            # Week 1: next layer of interesting files (config, utils, main modules)
+            week1 = [p for p in all_paths[:15] if p not in day1][:6]
+            # Week 2: remaining files up to a reasonable cap
+            week2 = [p for p in all_paths[15:30] if p not in day1 and p not in week1]
+
+            fallback_graph = {
+                "total_nodes": len(all_paths),
+                "learning_tiers": {
+                    "day_1": day1,
+                    "week_1": week1,
+                    "week_2": week2,
+                },
+                "fallback": True,
+            }
+            self.emit_progress(
+                f"  ✓ Fallback tiers built: {len(all_paths)} files | Day-1: {len(day1)}"
+            )
+            return fallback_graph
 
         builder = OnboardingGraphBuilder()
         graph = builder.build(import_graph, entry_points)
@@ -320,7 +346,7 @@ Consider CUI score, OCS, bus factor, risk signals AND git patterns. Be objective
 
         # Step 3 — OCS
         self.emit_progress("Step 3/4 — Onboarding Complexity Score")
-        total_files = scout_data.get("structure", {}).get("total_files", 0)
+        total_files = scout_data.get("structure", {}).get("file_count", 0)
         agg_components = cui_result.get("components", {})
         # Build a synthetic per-file list from aggregate scores for OCS computation
         # cui_score must be in 0-1 range (OCS function scales by *100 internally)
