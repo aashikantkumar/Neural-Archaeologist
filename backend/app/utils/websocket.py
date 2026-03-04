@@ -1,14 +1,15 @@
 import socketio
 from typing import Dict, Set
+from app.config import settings
+
+def _get_socket_origins() -> list:
+    """Reuse ALLOWED_ORIGINS from config so CORS is a single source of truth."""
+    return [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
 
 # Create Socket.IO server
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://neural-archaeologist.vercel.app"
-    ],
+    cors_allowed_origins=_get_socket_origins(),
     logger=True,
     engineio_logger=True
 )

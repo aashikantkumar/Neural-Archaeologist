@@ -17,14 +17,15 @@ app = FastAPI(
     debug=settings.DEBUG
 )
 
-# Configure CORS for frontend
+# Build allowed origins list from config (supports comma-separated env var)
+def _get_allowed_origins() -> list[str]:
+    origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+    return origins
+
+# Configure CORS for frontend (local + deployed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://neural-archaeologist.vercel.app"
-    ],  # Vite default port & Vercel deployment
+    allow_origins=_get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,9 +61,12 @@ async def root():
         "websocket": "/socket.io"
     }
 
-# Create ASGI app with Socket.IO
+# Create ASGI app with Socket.IO (use this as the entry point for uvicorn)
 socket_app = socketio.ASGIApp(
     sio,
     app,
     socketio_path='/socket.io'
 )
+
+# Alias so uvicorn can use either: app.main:app or app.main:socket_app
+app = socket_app

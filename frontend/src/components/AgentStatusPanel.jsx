@@ -17,9 +17,11 @@ const AgentStatusPanel = ({ agentStatus, status }) => {
     }[agentState] || 'Idle');
 
     const agents = [
-        { key: 'coordinator', name: 'Coordinator', icon: '🎯' },
         { key: 'scout', name: 'Scout', icon: '🔍' },
+        { key: 'persona_router', name: 'Persona', icon: '🎭' },
+        { key: 'planner', name: 'Planner', icon: '🗂️' },
         { key: 'analyst', name: 'Analyst', icon: '🧠' },
+        { key: 'evaluator', name: 'Evaluator', icon: '✅' },
         { key: 'narrator', name: 'Narrator', icon: '📝' },
     ];
 

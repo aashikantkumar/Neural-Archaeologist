@@ -21,3 +21,12 @@ langchain-groq==0.0.1
 langgraph==0.0.20
 google-search-results==2.4.2
 email-validator>=2.0.0
+
+# ── v2 additions ───────────────────────────────────────────
+# AST / code analysis
+networkx>=3.0              # DAG construction for onboarding graph
+# tree-sitter>=0.20.1      # Optional: production AST parser (replace regex MVP)
+# tree-sitter-python>=0.20 # Language grammar for tree-sitter
+
+# Static analysis (optional — install the CLI separately: pip install semgrep)
+# semgrep>=1.50.0          # Uncomment if Semgrep CLI available

@@ -1,5 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Float, ForeignKey, Integer, Text
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, String, DateTime, Float, ForeignKey, Integer, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -8,10 +7,14 @@ import uuid
 Base = declarative_base()
 
 
+def _uuid_str():
+    return str(uuid.uuid4())
+
+
 class User(Base):
     __tablename__ = "users"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(String(36), primary_key=True, default=_uuid_str)
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -23,11 +26,11 @@ class User(Base):
 class Investigation(Base):
     __tablename__ = "investigations"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    id = Column(String(36), primary_key=True, default=_uuid_str)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     repo_url = Column(Text, nullable=False)
     status = Column(String, default="pending")  # pending, processing, completed, failed
-    findings = Column(JSONB, default={})  # Scout and Analyst data
+    findings = Column(JSON, default=dict)  # Scout and Analyst data
     report = Column(Text, nullable=True)  # Final narrative from Narrator
     confidence = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -42,10 +45,10 @@ class AgentLog(Base):
     __tablename__ = "agent_logs"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    investigation_id = Column(UUID(as_uuid=True), ForeignKey("investigations.id"), nullable=False)
+    investigation_id = Column(String(36), ForeignKey("investigations.id"), nullable=False)
     agent_name = Column(String, nullable=False)  # scout, analyst, narrator, coordinator
     message = Column(Text, nullable=False)
-    data = Column(JSONB, default={})  # Additional context
+    data = Column(JSON, default=dict)  # Additional context
     timestamp = Column(DateTime, default=datetime.utcnow)
     
     # Relationship
@@ -56,5 +59,5 @@ class RepoCache(Base):
     __tablename__ = "repo_cache"
     
     repo_url = Column(Text, primary_key=True)
-    git_data = Column(JSONB, default={})  # Cached commit data
+    git_data = Column(JSON, default=dict)  # Cached commit data
     last_updated = Column(DateTime, default=datetime.utcnow)

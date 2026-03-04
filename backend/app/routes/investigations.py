@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
-from typing import Optional
+from typing import Any, Dict, Optional, Union
 from datetime import datetime
 import uuid
 import asyncio
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import Investigation, User, AgentLog
 from app.agents.coordinator import Coordinator
 from app.utils.auth import verify_token
@@ -19,6 +19,8 @@ router = APIRouter(prefix="/api/investigations", tags=["Investigations"])
 # Request/Response Models
 class InvestigationCreate(BaseModel):
     repo_url: HttpUrl
+    user_context: Optional[Union[str, Dict[str, Any]]] = None
+    persona_mode: Optional[str] = None
 
 
 class InvestigationResponse(BaseModel):
@@ -93,10 +95,21 @@ def progress_callback_sync(investigation_id: str, db: Session):
     return callback
 
 
-def run_investigation(investigation_id: str, repo_url: str, db: Session):
-    """Background task to run investigation"""
+def run_investigation(
+    investigation_id: str,
+    repo_url: str,
+    user_context: Optional[Union[str, Dict[str, Any]]] = None,
+    persona_mode: Optional[str] = None,
+):
+    """Background task to run investigation.
+    Creates its own DB session — the request-scoped session is already closed
+    by the time this background task executes.
+    """
     import traceback
-    
+
+    # Own session for the background task lifetime
+    db = SessionLocal()
+
     # Get investigation record
     investigation = db.query(Investigation).filter(Investigation.id == investigation_id).first()
     
@@ -115,7 +128,7 @@ def run_investigation(investigation_id: str, repo_url: str, db: Session):
         coordinator = Coordinator(progress_callback=callback)
         
         # Run investigation
-        result = coordinator.investigate(repo_url)
+        result = coordinator.investigate(repo_url, user_context=user_context, persona_mode=persona_mode)
         
         # Save results - include full report data in findings for visualization
         investigation.findings = {
@@ -142,6 +155,8 @@ def run_investigation(investigation_id: str, repo_url: str, db: Session):
         investigation.status = "failed"
         investigation.report = error_msg
         db.commit()
+    finally:
+        db.close()
 
 
 @router.post("/", response_model=InvestigationResponse, status_code=status.HTTP_201_CREATED)
@@ -155,7 +170,7 @@ async def create_investigation(
     
     # Create investigation record
     investigation = Investigation(
-        id=uuid.uuid4(),
+        id=str(uuid.uuid4()),
         user_id=current_user.id,
         repo_url=str(data.repo_url),
         status="pending"
@@ -165,12 +180,13 @@ async def create_investigation(
     db.commit()
     db.refresh(investigation)
     
-    # Queue background task
+    # Queue background task — pass IDs/values only, not the request-scoped db session
     background_tasks.add_task(
         run_investigation,
         str(investigation.id),
         str(data.repo_url),
-        db
+        data.user_context or "",
+        data.persona_mode,
     )
     # return investigation (changed part)
     # Return response with UUID converted to string

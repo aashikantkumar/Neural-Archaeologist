@@ -24,10 +24,12 @@ function Dashboard() {
     const [hypothesis, setHypothesis] = useState('');
     const [metrics, setMetrics] = useState({ commitsAnalyzed: 0, sourcesFound: 0, roundsCompleted: 0 });
     const [agentStatus, setAgentStatus] = useState({
-        coordinator: 'idle',
         scout: 'idle',
+        persona_router: 'idle',
+        planner: 'idle',
         analyst: 'idle',
-        narrator: 'idle'
+        evaluator: 'idle',
+        narrator: 'idle',
     });
 
     // Helper functions - Dark theme colors
@@ -169,22 +171,20 @@ function Dashboard() {
                 }
 
                 // If completed or failed, set all agents to idle/completed
+                const AGENTS = ['scout', 'persona_router', 'planner', 'analyst', 'evaluator', 'narrator'];
                 if (currentStatus === 'completed' || currentStatus === 'failed') {
-                    setAgentStatus({
-                        coordinator: 'completed',
-                        scout: 'completed',
-                        analyst: 'completed',
-                        narrator: 'completed'
-                    });
+                    const allDone = Object.fromEntries(AGENTS.map(a => [a, 'completed']));
+                    setAgentStatus(allDone);
                 } else {
-                    // Active investigation - calculate from recent logs
                     const recentAgents = logsData.slice(-5).map(l => l.agent);
-                    setAgentStatus({
-                        coordinator: recentAgents.includes('coordinator') ? 'active' : (activeAgents.has('coordinator') ? 'waiting' : 'idle'),
-                        scout: recentAgents.includes('scout') ? 'active' : (activeAgents.has('scout') ? 'waiting' : 'idle'),
-                        analyst: recentAgents.includes('analyst') ? 'active' : (activeAgents.has('analyst') ? 'waiting' : 'idle'),
-                        narrator: recentAgents.includes('narrator') ? 'active' : (activeAgents.has('narrator') ? 'waiting' : 'idle')
-                    });
+                    setAgentStatus(
+                        Object.fromEntries(AGENTS.map(a => [
+                            a,
+                            recentAgents.includes(a) ? 'active'
+                            : activeAgents.has(a) ? 'waiting'
+                            : 'idle'
+                        ]))
+                    );
                 }
             } catch (error) {
                 console.error('Polling error:', error);
