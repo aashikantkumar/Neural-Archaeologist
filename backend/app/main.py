@@ -1,13 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import socketio
-from app.database import engine
-from app.models import Base
 from app.config import settings
-from app.utils.websocket import sio
+from app.database import Base, engine, init_db
+from app.routes import auth, investigations
+import socketio
+import logging
 
-# Create all database tables
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger(__name__)
+
+# Initialize DB with retry (instead of crashing at import time)
+init_db()
 
 # Initialize FastAPI app
 app = FastAPI(
