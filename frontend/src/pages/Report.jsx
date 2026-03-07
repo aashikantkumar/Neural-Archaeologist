@@ -13,6 +13,7 @@ function Report() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('story');
   const [expandedTimelineItem, setExpandedTimelineItem] = useState(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   useEffect(() => {
     const fetchInvestigation = async () => {
@@ -67,9 +68,15 @@ function Report() {
     present: { icon: '🔬', color: 'bg-purple-500', borderColor: 'border-purple-500' },
   }[type] || { icon: '📌', color: 'bg-gray-500', borderColor: 'border-gray-500' });
 
-  // Handle PDF export
+  // Handle PDF export — render ALL sections, then print
   const handleExportPDF = () => {
-    window.print();
+    setIsPrinting(true);
+    // Wait for React to render all sections into the DOM
+    setTimeout(() => {
+      window.print();
+      // Restore normal view after the print dialog closes
+      setTimeout(() => setIsPrinting(false), 500);
+    }, 400);
   };
 
   // Handle share
@@ -253,22 +260,20 @@ function Report() {
             {(analysis.technical_health || analysis.salvageability || analysis.onboarding_difficulty) && (
               <div className="flex flex-wrap gap-3 mb-4">
                 {analysis.technical_health && (
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    analysis.technical_health === 'excellent' ? 'bg-green-500/20 text-green-300' :
-                    analysis.technical_health === 'good' ? 'bg-blue-500/20 text-blue-300' :
-                    analysis.technical_health === 'fair' ? 'bg-yellow-500/20 text-yellow-300' :
-                    'bg-red-500/20 text-red-300'
-                  }`}>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${analysis.technical_health === 'excellent' ? 'bg-green-500/20 text-green-300' :
+                      analysis.technical_health === 'good' ? 'bg-blue-500/20 text-blue-300' :
+                        analysis.technical_health === 'fair' ? 'bg-yellow-500/20 text-yellow-300' :
+                          'bg-red-500/20 text-red-300'
+                    }`}>
                     🏥 Health: {analysis.technical_health}
                   </span>
                 )}
                 {analysis.salvageability && (
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    analysis.salvageability === 'high' ? 'bg-green-500/20 text-green-300' :
-                    analysis.salvageability === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
-                    analysis.salvageability === 'low' ? 'bg-orange-500/20 text-orange-300' :
-                    'bg-red-500/20 text-red-300'
-                  }`}>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${analysis.salvageability === 'high' ? 'bg-green-500/20 text-green-300' :
+                      analysis.salvageability === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                        analysis.salvageability === 'low' ? 'bg-orange-500/20 text-orange-300' :
+                          'bg-red-500/20 text-red-300'
+                    }`}>
                     🔧 Salvageability: {analysis.salvageability}
                   </span>
                 )}
@@ -314,7 +319,7 @@ function Report() {
         {/* Tab Content */}
         <AnimatePresence mode="wait">
           {/* Story Tab */}
-          {activeTab === 'story' && (
+          {(activeTab === 'story' || isPrinting) && (
             <motion.section
               key="story"
               initial={{ opacity: 0, y: 20 }}
@@ -370,7 +375,7 @@ function Report() {
           )}
 
           {/* Timeline Tab */}
-          {activeTab === 'timeline' && (
+          {(activeTab === 'timeline' || isPrinting) && (
             <motion.section
               key="timeline"
               initial={{ opacity: 0, y: 20 }}
@@ -385,7 +390,7 @@ function Report() {
           )}
 
           {/* ── Analysis Tab ─────────────────────────────────── */}
-          {activeTab === 'analysis' && (
+          {(activeTab === 'analysis' || isPrinting) && (
             <motion.section
               key="analysis"
               initial={{ opacity: 0, y: 20 }}
@@ -499,19 +504,17 @@ function Report() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.05 }}
-                        className={`flex items-start gap-3 p-3 rounded-xl border ${
-                          item.level === 'CRITICAL' ? 'bg-red-500/10 border-red-500/30' :
-                          item.level === 'HIGH' ? 'bg-orange-500/10 border-orange-500/30' :
-                          item.level === 'MEDIUM' ? 'bg-yellow-500/10 border-yellow-500/30' :
-                          'bg-blue-500/10 border-blue-500/30'
-                        }`}
+                        className={`flex items-start gap-3 p-3 rounded-xl border ${item.level === 'CRITICAL' ? 'bg-red-500/10 border-red-500/30' :
+                            item.level === 'HIGH' ? 'bg-orange-500/10 border-orange-500/30' :
+                              item.level === 'MEDIUM' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                                'bg-blue-500/10 border-blue-500/30'
+                          }`}
                       >
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${
-                          item.level === 'CRITICAL' ? 'bg-red-500/30 text-red-300' :
-                          item.level === 'HIGH' ? 'bg-orange-500/30 text-orange-300' :
-                          item.level === 'MEDIUM' ? 'bg-yellow-500/30 text-yellow-300' :
-                          'bg-blue-500/30 text-blue-300'
-                        }`}>{item.level}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${item.level === 'CRITICAL' ? 'bg-red-500/30 text-red-300' :
+                            item.level === 'HIGH' ? 'bg-orange-500/30 text-orange-300' :
+                              item.level === 'MEDIUM' ? 'bg-yellow-500/30 text-yellow-300' :
+                                'bg-blue-500/30 text-blue-300'
+                          }`}>{item.level}</span>
                         <div>
                           <div className="text-white text-sm font-medium">{item.name || item.risk_name}</div>
                           {item.file && item.file !== 'repository' && (
@@ -572,7 +575,7 @@ function Report() {
           )}
 
           {/* ── Onboarding Tab ───────────────────────────────── */}
-          {activeTab === 'onboarding' && (
+          {(activeTab === 'onboarding' || isPrinting) && (
             <motion.section
               key="onboarding"
               initial={{ opacity: 0, y: 20 }}
@@ -614,7 +617,7 @@ function Report() {
                     })}
                     {/* Any other tiers */}
                     {Object.entries(learningPath)
-                      .filter(([k]) => !['day_1','week_1','week_2'].includes(k))
+                      .filter(([k]) => !['day_1', 'week_1', 'week_2'].includes(k))
                       .map(([key, files]) => (
                         <div key={key} className="rounded-xl border border-gray-500/30 bg-gray-500/5 p-4">
                           <div className="flex items-center gap-2 mb-3 font-medium text-white capitalize">
@@ -706,103 +709,103 @@ function Report() {
           )}
 
           {/* Contributors Tab */}
-          {activeTab === 'contributors' && (            <motion.section
-              key="contributors"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-black/40 backdrop-blur-xl rounded-2xl border border-white/5 p-6 md:p-8"
-            >
-              <h2 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
-                <span>👥</span>
-                Contributor Profiles
-              </h2>
+          {(activeTab === 'contributors' || isPrinting) && (<motion.section
+            key="contributors"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-black/40 backdrop-blur-xl rounded-2xl border border-white/5 p-6 md:p-8"
+          >
+            <h2 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
+              <span>👥</span>
+              Contributor Profiles
+            </h2>
 
-              {scoutData.top_contributors?.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {scoutData.top_contributors.slice(0, 6).map((contributor, index) => {
-                    // Handle different data formats (Git Analytics vs GitHub API)
-                    const name = contributor.name || contributor.username || 'Unknown';
-                    const commits = contributor.commit_count || contributor.contributions || 0;
+            {scoutData.top_contributors?.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {scoutData.top_contributors.slice(0, 6).map((contributor, index) => {
+                  // Handle different data formats (Git Analytics vs GitHub API)
+                  const name = contributor.name || contributor.username || 'Unknown';
+                  const commits = contributor.commit_count || contributor.contributions || 0;
 
-                    // Calculate percentage if missing
-                    let percentage = contributor.percentage;
-                    if (percentage === undefined || percentage === null) {
-                      const total = scoutData.total_commits || 1;
-                      percentage = (commits / total) * 100;
-                    }
+                  // Calculate percentage if missing
+                  let percentage = contributor.percentage;
+                  if (percentage === undefined || percentage === null) {
+                    const total = scoutData.total_commits || 1;
+                    percentage = (commits / total) * 100;
+                  }
 
-                    const impactLevel = percentage > 30 ? 'Lead Developer' :
-                      percentage > 15 ? 'Core Contributor' : 'Contributor';
-                    const impactColor = percentage > 30 ? 'text-purple-400' :
-                      percentage > 15 ? 'text-blue-400' : 'text-gray-400';
+                  const impactLevel = percentage > 30 ? 'Lead Developer' :
+                    percentage > 15 ? 'Core Contributor' : 'Contributor';
+                  const impactColor = percentage > 30 ? 'text-purple-400' :
+                    percentage > 15 ? 'text-blue-400' : 'text-gray-400';
 
-                    return (
-                      <motion.div
-                        key={name}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        whileHover={{ scale: 1.02 }}
-                        className="bg-white/5 rounded-xl p-5 border border-white/5"
-                      >
-                        <div className="flex items-center gap-4">
-                          {contributor.avatar_url ? (
-                            <img
-                              src={contributor.avatar_url}
-                              alt={name}
-                              className="w-14 h-14 rounded-full border-2 border-purple-500/30"
-                            />
-                          ) : (
-                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl font-bold text-white">
-                              {name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-white text-lg">{name}</h3>
-                            <a
-                              href={contributor.profile_url || `https://github.com/${name}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`text-sm ${impactColor} hover:underline`}
-                            >
-                              {impactLevel}
-                            </a>
+                  return (
+                    <motion.div
+                      key={name}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      whileHover={{ scale: 1.02 }}
+                      className="bg-white/5 rounded-xl p-5 border border-white/5"
+                    >
+                      <div className="flex items-center gap-4">
+                        {contributor.avatar_url ? (
+                          <img
+                            src={contributor.avatar_url}
+                            alt={name}
+                            className="w-14 h-14 rounded-full border-2 border-purple-500/30"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl font-bold text-white">
+                            {name.charAt(0).toUpperCase()}
                           </div>
+                        )}
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-white text-lg">{name}</h3>
+                          <a
+                            href={contributor.profile_url || `https://github.com/${name}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`text-sm ${impactColor} hover:underline`}
+                          >
+                            {impactLevel}
+                          </a>
                         </div>
+                      </div>
 
-                        <div className="mt-4">
-                          <div className="flex justify-between text-sm mb-2">
-                            <span className="text-gray-400">Contributions</span>
-                            <span className="text-white">{commits} commits</span>
-                          </div>
-                          <div className="bg-slate-800 rounded-full h-2 overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${Math.min(percentage, 100)}%` }}
-                              transition={{ duration: 1, delay: index * 0.1 }}
-                              className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
-                            />
-                          </div>
-                          <div className="text-right text-xs text-gray-500 mt-1">
-                            {percentage.toFixed(1)}% of total
-                          </div>
+                      <div className="mt-4">
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-gray-400">Contributions</span>
+                          <span className="text-white">{commits} commits</span>
                         </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center text-gray-400 py-12">
-                  <div className="text-4xl mb-4">👤</div>
-                  <p>No contributor data available.</p>
-                </div>
-              )}
-            </motion.section>
+                        <div className="bg-slate-800 rounded-full h-2 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(percentage, 100)}%` }}
+                            transition={{ duration: 1, delay: index * 0.1 }}
+                            className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                          />
+                        </div>
+                        <div className="text-right text-xs text-gray-500 mt-1">
+                          {percentage.toFixed(1)}% of total
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center text-gray-400 py-12">
+                <div className="text-4xl mb-4">👤</div>
+                <p>No contributor data available.</p>
+              </div>
+            )}
+          </motion.section>
           )}
 
           {/* GitHub Insights Tab */}
-          {activeTab === 'github' && (
+          {(activeTab === 'github' || isPrinting) && (
             <motion.section
               key="github"
               initial={{ opacity: 0, y: 20 }}
@@ -1026,7 +1029,7 @@ function Report() {
           )}
 
           {/* Sources Tab */}
-          {activeTab === 'sources' && (
+          {(activeTab === 'sources' || isPrinting) && (
             <motion.section
               key="sources"
               initial={{ opacity: 0, y: 20 }}

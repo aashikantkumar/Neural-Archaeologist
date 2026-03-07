@@ -62,6 +62,9 @@ function Dashboard() {
                 setInvestigation(response.data);
                 setStatus(response.data.status);
                 setConfidence(response.data.confidence || 0);
+                // Populate hypothesis from stored findings if already completed
+                const storedHypothesis = response.data?.findings?.analysis?.hypothesis;
+                if (storedHypothesis) setHypothesis(storedHypothesis);
                 setLoading(false);
             } catch (error) {
                 console.error('Failed to fetch investigation:', error);
@@ -82,6 +85,17 @@ function Dashboard() {
                     timestamp: new Date().toISOString(),
                 }]);
                 setAgentStatus(prev => ({ ...prev, [data.agent_name]: 'active' }));
+
+                // Real-time hypothesis update
+                if (data.agent_name === 'analyst') {
+                    if (data.data?.hypothesis) {
+                        setHypothesis(data.data.hypothesis);
+                    } else if (data.message?.startsWith('Hypothesis:')) {
+                        let h = data.message.replace('Hypothesis: ', '');
+                        if (h.endsWith('...')) h = h.slice(0, -3);
+                        setHypothesis(h);
+                    }
+                }
             }
         });
 
@@ -135,8 +149,21 @@ function Dashboard() {
                     if (confMatch) {
                         setConfidence(parseInt(confMatch[1]));
                     }
-                    if (log.agent === 'analyst' && log.message.includes('Analysis complete:')) {
-                        currentHypothesis = log.message.replace('Analysis complete: ', '');
+                    if (log.agent === 'analyst' && (
+                        log.message.includes('Analysis complete:') ||
+                        log.message.startsWith('Hypothesis:')
+                    )) {
+                        currentHypothesis = log.message
+                            .replace('Analysis complete: ', '')
+                            .replace('Hypothesis: ', '');
+                        // Remove trailing ellipsis from truncated hypothesis
+                        if (currentHypothesis.endsWith('...')) {
+                            currentHypothesis = currentHypothesis.slice(0, -3);
+                        }
+                    }
+                    // Also pick up hypothesis from log data field
+                    if (log.data?.hypothesis) {
+                        currentHypothesis = log.data.hypothesis;
                     }
                     if (log.message.includes('commits')) {
                         const match = log.message.match(/(\d+)\s*commits/);

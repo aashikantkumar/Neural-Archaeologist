@@ -124,3 +124,169 @@
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
+
+/* ── Print / PDF Export Styles ─────────────────────────── */
+@media print {
+  /* Reset root constraints */
+  #root {
+    max-width: none !important;
+    padding: 0 !important;
+    text-align: left !important;
+    margin: 0 !important;
+  }
+
+  /* White background everywhere */
+  html, body, #root,
+  .min-h-screen,
+  [class*="bg-slate-"],
+  [class*="bg-black"],
+  [class*="bg-gray-"] {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Hide fixed decorative backgrounds */
+  .fixed.inset-0,
+  .pointer-events-none,
+  [class*="blur-3xl"],
+  [class*="blur-xl"] {
+    display: none !important;
+  }
+
+  /* Make all text dark for readability */
+  [class*="text-white"],
+  [class*="text-gray-"],
+  [class*="text-slate-"] {
+    color: #111 !important;
+  }
+
+  [class*="text-purple-"] {
+    color: #6b21a8 !important;
+  }
+
+  [class*="text-green-"] {
+    color: #166534 !important;
+  }
+
+  [class*="text-blue-"] {
+    color: #1e40af !important;
+  }
+
+  [class*="text-red-"] {
+    color: #991b1b !important;
+  }
+
+  [class*="text-yellow-"],
+  [class*="text-orange-"],
+  [class*="text-amber-"] {
+    color: #92400e !important;
+  }
+
+  /* Cards and containers: white bg with light borders */
+  [class*="bg-black/"],
+  [class*="bg-white/"],
+  [class*="bg-purple-900"],
+  [class*="bg-pink-900"],
+  [class*="backdrop-blur"] {
+    background: white !important;
+    border-color: #d1d5db !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Gradient overlays → transparent */
+  [class*="bg-gradient-to"] {
+    background: transparent !important;
+  }
+
+  /* Visible borders for cards */
+  [class*="rounded-2xl"],
+  [class*="rounded-xl"] {
+    border: 1px solid #e5e7eb !important;
+  }
+
+  /* Progress bars should keep color */
+  [class*="bg-gradient-to-r"][class*="h-full"] {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Score / stat badges keep their bg color */
+  [class*="bg-green-500/"],
+  [class*="bg-red-500/"],
+  [class*="bg-blue-500/"],
+  [class*="bg-yellow-500/"],
+  [class*="bg-orange-500/"],
+  [class*="bg-purple-500/"] {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Hide interactive-only elements */
+  .print\\:hidden,
+  button:not(.print-keep),
+  nav,
+  select,
+  input,
+  header .flex.items-center.gap-3.print\\:hidden {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .hidden.print\\:block {
+    display: block !important;
+  }
+
+  /* Show the header (without action buttons) */
+  header {
+    position: static !important;
+    background: white !important;
+    border-bottom: 2px solid #e5e7eb !important;
+  }
+
+  /* Page layout */
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+
+  /* Avoid breaking inside cards */
+  [class*="rounded-2xl"],
+  [class*="rounded-xl"],
+  .space-y-6 > * {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure sticky header doesn't overlap */
+  .sticky {
+    position: static !important;
+  }
+
+  /* Remove all animations */
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Prose content for readable markdown */
+  .prose {
+    color: #111 !important;
+    max-width: none !important;
+  }
+
+  .prose h1, .prose h2, .prose h3 {
+    color: #111 !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .prose p, .prose li {
+    color: #333 !important;
+  }
+
+  .prose a {
+    color: #6b21a8 !important;
+    text-decoration: underline !important;
+  }
+}
