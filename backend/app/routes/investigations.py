@@ -11,6 +11,7 @@ from app.models import Investigation, User, AgentLog
 from app.agents.coordinator import Coordinator
 from app.utils.auth import verify_token
 from fastapi import Header
+from jose import ExpiredSignatureError, JWTError
 
 
 router = APIRouter()
@@ -56,12 +57,20 @@ def get_current_user(authorization: str = Header(None), db: Session = Depends(ge
         )
     
     token = authorization.replace("Bearer ", "")
-    payload = verify_token(token)
     
-    if not payload:
+    try:
+        payload = verify_token(token)
+    except ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
+            detail="Your session has expired. Please login again.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token. Please login again.",
+            headers={"WWW-Authenticate": "Bearer"}
         )
     
     user_id = payload.get("user_id")

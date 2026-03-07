@@ -1,6 +1,6 @@
 import asyncio
 from passlib.context import CryptContext
-from jose import JWTError, jwt
+from jose import JWTError, jwt, ExpiredSignatureError
 from datetime import datetime, timedelta
 from app.config import settings
 
@@ -38,9 +38,21 @@ def create_access_token(data: dict) -> str:
 
 
 def verify_token(token: str) -> dict:
-    """Verify and decode JWT token"""
+    """Verify and decode JWT token
+    
+    Returns:
+        dict: Token payload if valid
+        
+    Raises:
+        ExpiredSignatureError: If token is expired
+        JWTError: If token is invalid (malformed, wrong signature, etc.)
+    """
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
+    except ExpiredSignatureError:
+        # Re-raise to allow caller to handle expired tokens specifically
+        raise
     except JWTError:
-        return None
+        # Re-raise other JWT errors (invalid signature, malformed, etc.)
+        raise
