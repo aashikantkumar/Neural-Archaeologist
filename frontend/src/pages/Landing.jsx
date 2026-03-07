@@ -434,17 +434,19 @@ function Landing() {
                     <h2 className="text-3xl font-bold text-white text-center mb-4">
                         The Excavation Process
                     </h2>
-                    <p className="text-gray-500 text-center mb-12">Four AI agents working in harmony</p>
+                    <p className="text-gray-500 text-center mb-12">Six AI agents working in harmony</p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 relative">
                         {/* Connecting line */}
-                        <div className="hidden md:block absolute top-12 left-[12.5%] right-[12.5%] h-0.5 bg-gradient-to-r from-blue-500/50 via-purple-500/50 via-pink-500/50 to-yellow-500/50" />
+                        <div className="hidden lg:block absolute top-12 left-[8%] right-[8%] h-0.5 bg-gradient-to-r from-blue-500/50 via-cyan-500/50 via-purple-500/50 via-pink-500/50 via-green-500/50 to-orange-500/50" />
 
                         {[
-                            { icon: '🔍', name: 'Scout Agent', desc: 'Excavates git history & web sources', color: 'blue', delay: 0 },
-                            { icon: '🧠', name: 'Analyst Agent', desc: 'Detects patterns & forms hypotheses', color: 'purple', delay: 0.1 },
-                            { icon: '📝', name: 'Narrator Agent', desc: 'Crafts the archaeological report', color: 'pink', delay: 0.2 },
-                            { icon: '🎯', name: 'Coordinator', desc: 'Orchestrates until confident', color: 'yellow', delay: 0.3 },
+                            { icon: '🔍', name: 'Scout', desc: 'Multi-source intelligence gathering', color: 'blue', delay: 0 },
+                            { icon: '🎭', name: 'Persona Router', desc: 'Classifies investigation intent', color: 'cyan', delay: 0.05 },
+                            { icon: '📋', name: 'Planner', desc: 'Generates strategic task graph', color: 'purple', delay: 0.1 },
+                            { icon: '🧪', name: 'Analyst', desc: 'CUI v2 & business risk analysis', color: 'pink', delay: 0.15 },
+                            { icon: '✅', name: 'Evaluator', desc: 'Quality gate & verification', color: 'green', delay: 0.2 },
+                            { icon: '📖', name: 'Narrator', desc: 'Persona-aware report generation', color: 'orange', delay: 0.25 },
                         ].map((agent, i) => (
                             <motion.div
                                 key={agent.name}
