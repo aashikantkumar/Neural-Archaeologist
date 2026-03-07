@@ -19,6 +19,48 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle auth errors - clear token and redirect on expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Check if it's a 401 error (unauthorized)
+    if (error.response?.status === 401) {
+      const errorMessage = error.response?.data?.detail || '';
+      
+      // Check if token is expired
+      if (errorMessage.includes('expired')) {
+        // Clear local storage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Show user-friendly message
+        alert('Your session has expired. Please login again.');
+        
+        // Redirect to login page
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          window.location.href = '/login';
+        }
+      }
+      // Check if token is invalid
+      else if (errorMessage.includes('Invalid authentication token')) {
+        // Clear local storage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Show user-friendly message
+        alert('Your session is invalid. Please login again.');
+        
+        // Redirect to login page
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          window.location.href = '/login';
+        }
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 // Auth APIs
 export const auth = {
   register: (email, password) =>
