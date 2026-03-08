@@ -12,8 +12,8 @@
 set -e
 
 # ── CONFIGURE THESE ──────────────────────────────────────────────────────────
-DOMAIN="YOUR_DOMAIN"           # e.g. neural-archaeologist.com
-EMAIL="YOUR_EMAIL"             # used for expiry notifications
+DOMAIN="neural-archaeologist.duckdns.org"  # e.g. neural-archaeologist.com
+EMAIL="aashikantkumar2@gmail.com"             # used for expiry notifications
 STAGING=0                      # set to 1 to test with Let's Encrypt staging CA
 # ─────────────────────────────────────────────────────────────────────────────
 

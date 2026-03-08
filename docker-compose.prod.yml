@@ -16,17 +16,13 @@ services:
   db:
     image: postgres:15-alpine
     env_file: .env.prod
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-neural_archaeologist}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - app_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -47,8 +43,8 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: https://${DOMAIN_NAME}
-        VITE_SOCKET_URL: https://${DOMAIN_NAME}
+        VITE_API_URL: https://neural-archaeologist.duckdns.org
+        VITE_SOCKET_URL: https://neural-archaeologist.duckdns.org
     restart: unless-stopped
     networks:
       - app_network
