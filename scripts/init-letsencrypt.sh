@@ -31,22 +31,39 @@ command -v docker >/dev/null 2>&1 || { echo "docker not found"; exit 1; }
 command -v docker compose >/dev/null 2>&1 || { echo "docker compose not found"; exit 1; }
 
 # Step 1 — Create dummy cert so nginx can start
+# Use --entrypoint "" to clear certbot's default entrypoint, then run sh -c
 echo "==> Creating dummy certificate for $DOMAIN ..."
-docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "\
-  mkdir -p '$DATA_PATH/live/$DOMAIN' && \
-  openssl req -x509 -nodes -newkey rsa:$RSA_KEY_SIZE -days 1 \
-    -keyout '$DATA_PATH/live/$DOMAIN/privkey.pem' \
-    -out '$DATA_PATH/live/$DOMAIN/fullchain.pem' \
-    -subj '/CN=localhost'" certbot
+docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "" certbot \
+  sh -c "mkdir -p $DATA_PATH/live/$DOMAIN && \
+         openssl req -x509 -nodes -newkey rsa:$RSA_KEY_SIZE -days 1 \
+           -keyout $DATA_PATH/live/$DOMAIN/privkey.pem \
+           -out $DATA_PATH/live/$DOMAIN/fullchain.pem \
+           -subj /CN=localhost"
 
-# Step 2 — Start nginx with the dummy cert
-echo "==> Starting nginx ..."
-docker compose -f "$COMPOSE_FILE" up --force-recreate -d nginx
+# Verify dummy cert was actually created
+echo "==> Verifying dummy certificate ..."
+docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "" certbot \
+  sh -c "test -f $DATA_PATH/live/$DOMAIN/fullchain.pem && echo 'OK — dummy cert exists' || (echo 'ERROR: dummy cert not found!' && exit 1)"
+
+# Step 2 — Start all services (nginx will use the dummy cert)
+echo "==> Starting all services ..."
+docker compose -f "$COMPOSE_FILE" up --force-recreate -d
+
+# Wait for nginx to be responding on port 80
+echo "==> Waiting for nginx to be ready on port 80 ..."
+for i in $(seq 1 30); do
+  if docker compose -f "$COMPOSE_FILE" exec -T nginx wget -q --spider http://localhost:80/ 2>/dev/null; then
+    echo "    nginx is up!"
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "WARNING: nginx may not be ready yet, proceeding anyway..."
+    docker compose -f "$COMPOSE_FILE" logs nginx --tail 5
+  fi
+  sleep 2
+done
 
 # Step 3 — Request a real certificate
-# NOTE: We keep the dummy cert in place so nginx stays running (nginx would
-# crash if the cert files vanished). With --force-renewal certbot overwrites
-# the dummy cert while nginx is alive to serve the ACME challenge.
 echo "==> Requesting Let's Encrypt certificate for $DOMAIN ..."
 STAGING_FLAG=""
 if [[ $STAGING -eq 1 ]]; then
@@ -54,18 +71,18 @@ if [[ $STAGING -eq 1 ]]; then
   echo "WARNING: Running in staging mode — certificate will NOT be trusted by browsers."
 fi
 
-docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "\
+docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "" certbot \
   certbot certonly --webroot \
     --webroot-path=/var/www/certbot \
     $STAGING_FLAG \
-    --email $EMAIL \
-    --rsa-key-size $RSA_KEY_SIZE \
+    --email "$EMAIL" \
+    --rsa-key-size "$RSA_KEY_SIZE" \
     --agree-tos \
     --no-eff-email \
     --force-renewal \
-    -d $DOMAIN" certbot
+    -d "$DOMAIN"
 
-# Step 5 — Reload nginx with the real cert
+# Step 4 — Reload nginx with the real cert
 echo "==> Reloading nginx ..."
 docker compose -f "$COMPOSE_FILE" exec nginx nginx -s reload
 
