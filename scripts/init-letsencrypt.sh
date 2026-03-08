@@ -33,6 +33,7 @@ command -v docker compose >/dev/null 2>&1 || { echo "docker compose not found"; 
 # Step 1 — Create dummy cert so nginx can start
 echo "==> Creating dummy certificate for $DOMAIN ..."
 docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "\
+  mkdir -p '$DATA_PATH/live/$DOMAIN' && \
   openssl req -x509 -nodes -newkey rsa:$RSA_KEY_SIZE -days 1 \
     -keyout '$DATA_PATH/live/$DOMAIN/privkey.pem' \
     -out '$DATA_PATH/live/$DOMAIN/fullchain.pem' \
