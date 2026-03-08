@@ -42,14 +42,10 @@ docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "\
 echo "==> Starting nginx ..."
 docker compose -f "$COMPOSE_FILE" up --force-recreate -d nginx
 
-# Step 3 — Delete dummy cert
-echo "==> Deleting dummy certificate ..."
-docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "\
-  rm -Rf /etc/letsencrypt/live/$DOMAIN && \
-  rm -Rf /etc/letsencrypt/archive/$DOMAIN && \
-  rm -Rf /etc/letsencrypt/renewal/$DOMAIN.conf" certbot
-
-# Step 4 — Request a real certificate
+# Step 3 — Request a real certificate
+# NOTE: We keep the dummy cert in place so nginx stays running (nginx would
+# crash if the cert files vanished). With --force-renewal certbot overwrites
+# the dummy cert while nginx is alive to serve the ACME challenge.
 echo "==> Requesting Let's Encrypt certificate for $DOMAIN ..."
 STAGING_FLAG=""
 if [[ $STAGING -eq 1 ]]; then
@@ -66,8 +62,7 @@ docker compose -f "$COMPOSE_FILE" run --rm --entrypoint "\
     --agree-tos \
     --no-eff-email \
     --force-renewal \
-    -d $DOMAIN \
-    -d www.$DOMAIN" certbot
+    -d $DOMAIN" certbot
 
 # Step 5 — Reload nginx with the real cert
 echo "==> Reloading nginx ..."
